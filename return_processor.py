@@ -6,7 +6,7 @@ from pypdf import PdfReader
 
 # --- Configuration ---
 MESSAGE_QUEUE_HOST = "localhost"
-GEMINI_API_KEY = "AIzaSyCCeiOc72dEH4Axye8L4u8c2_nNf2Un_OQ"  # Replace with your actual API key
+GEMINI_API_KEY = "YOUR GEMINI_API_KEY"  # Replace with your actual API key
 GEMINI_MODEL_NAME = "gemini-1.5-flash-latest"
 
 genai.configure(api_key=GEMINI_API_KEY)
