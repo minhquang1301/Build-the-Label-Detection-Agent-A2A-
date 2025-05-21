@@ -1,0 +1,12 @@
+1. những file  có từ " send" đứng đầu là dùng để test từng lable processor riêng biệt(  test từng cái) 
+
+2. "label processor" dùng để file hàng loạt, tự động hóa, có thể xử lí 1 folder chứa 100 PDF
+
+3.  shipping_processornew và old khác nhau
+			Cải thiện prompt cho Gemini hiểu hơn 
+			Xử lí phần Gemini trả về
+			Bỏ qua nếu không phải JSON hợp lệ 
+
+4. Tải phần mềm Tesseract-OCR để có thể phiên dịch các dạng ko phải "text" such as: scan picture, QR
+
+5. Phải tải Tesseract và Ghostscript và Poppler để  kích hoạt OCR fallback dùng pdf2image (không thể chuyển PDF thành ảnh nếu đang thiếu Poppler ) 
