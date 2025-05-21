@@ -1,7 +1,7 @@
 import os
 import datetime
 
-DAILY_FOLDER_BASE = "D:\Desktop\Thực tập\A2A và MCP\Build the Label Detection Agent (A2A)\daily"  # Thay thế bằng đường dẫn thực tế
+DAILY_FOLDER_BASE = "D:\Desktop\A2A và MCP\Build the Label Detection Agent (A2A)\daily"  # Thay thế bằng đường dẫn thực tế
 
 today = datetime.date.today()
 daily_folder_name = today.strftime("%Y-%m-%d")
