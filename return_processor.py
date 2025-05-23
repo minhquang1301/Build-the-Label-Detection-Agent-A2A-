@@ -1,12 +1,13 @@
 import os
-import pika # type: ignore
 import json
+import time
+import sqlite3
 import google.generativeai as genai
 from pypdf import PdfReader
 
 # --- Configuration ---
-MESSAGE_QUEUE_HOST = "localhost"
-GEMINI_API_KEY = "YOUR GEMINI API KEY"  # Replace with your actual API key
+DB_PATH = "return_tasks.db"
+GEMINI_API_KEY = "YOUR GEMINI API KEY"
 GEMINI_MODEL_NAME = "gemini-1.5-flash-latest"
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -16,34 +17,79 @@ except Exception as e:
     print(f"Error initializing Gemini model: {e}")
     exit()
 
+# --- SQLite Setup ---
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS return_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_path TEXT NOT NULL,
+            status TEXT DEFAULT 'pending'
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def add_task(file_path):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO return_tasks (file_path, status) VALUES (?, ?)", (file_path, "pending"))
+    conn.commit()
+    conn.close()
+
+def get_next_task():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, file_path FROM return_tasks WHERE status = 'pending' LIMIT 1")
+    task = cursor.fetchone()
+    conn.close()
+    return task
+
+def update_task_status(task_id, status):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE return_tasks SET status = ? WHERE id = ?", (status, task_id))
+    conn.commit()
+    conn.close()
+
+# --- PDF Extraction ---
 def extract_text_from_pdf(pdf_path):
     text = ""
     try:
         with open(pdf_path, 'rb') as file:
             reader = PdfReader(file)
             for page in reader.pages:
-                text += page.extract_text() + "\n"
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
     except Exception as e:
         print(f"Error reading PDF {pdf_path}: {e}")
     return text
 
+# --- Gemini Extraction ---
 def process_return_label(pdf_content):
-    prompt = f"""Extract the following information from this return label:
+    prompt = """Extract the following information from this return label:
     - Return ID
     - Order ID
     - Reason for return
     - Return Date
 
-    Return the result as a JSON object.
-    """
+Return the result as a JSON object.
+"""
 
     try:
         response = gemini_model.generate_content([prompt, pdf_content])
         response.resolve()
         if response.parts:
+            result = response.parts[0].text.strip()
             print("Gemini response:")
-            print(response.parts[0].text)  # In ra nội dung để kiểm tra
-            return json.loads(response.parts[0].text)
+            print(result)
+
+            if result.startswith("```"):
+                result = result.replace("```json", "").replace("```", "").strip()
+
+            return json.loads(result)
         else:
             print("No parts in Gemini response.")
             return None
@@ -51,37 +97,36 @@ def process_return_label(pdf_content):
         print(f"Error during Gemini data extraction for return label: {e}")
         return None
 
-def callback(ch, method, properties, body):
-    message = json.loads(body.decode())
-    file_path = message['file_path']
-    print(f"Received task for shipping label: {file_path}")
-
-    pdf_text = extract_text_from_pdf(file_path)
-    if pdf_text:
-        extracted_data = process_return_label(pdf_text)
-        if extracted_data:
-            print("Extracted Shipping Label Data:")
-            print(json.dumps(extracted_data, indent=4))
-            # In a real application, you would store this data
-        else:
-            print(f"Failed to extract data from shipping label: {file_path}")
-    else:
-        print(f"Could not read PDF: {file_path}")
-    ch.basic_ack(delivery_tag=method.delivery_tag)
-
+# --- Main Loop ---
 def main():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(MESSAGE_QUEUE_HOST))
-    channel = connection.channel()
-    channel.exchange_declare(exchange='label_tasks', exchange_type='direct', durable=True)
-    channel.queue_declare(queue='return_queue', durable=True)
-    channel.queue_bind(exchange='label_tasks', queue='return_queue', routing_key='return')
+    init_db()
+    print('🔁 Waiting for return label tasks in SQLite. Press CTRL+C to exit.')
 
+    while True:
+        task = get_next_task()
+        if not task:
+            time.sleep(2)
+            continue
 
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue='return_queue', on_message_callback=callback)
+        task_id, file_path = task
+        print(f"\n📄 Processing return label: {file_path}")
+        update_task_status(task_id, "processing")
 
-    print(' [*] Waiting for shipping label tasks. To exit press CTRL+C')
-    channel.start_consuming()
+        pdf_text = extract_text_from_pdf(file_path)
+        if pdf_text:
+            extracted_data = process_return_label(pdf_text)
+            if extracted_data:
+                print("✅ Extracted Return Label Data:")
+                print(json.dumps(extracted_data, indent=4))
+                update_task_status(task_id, "done")
+            else:
+                print(f"[!] Failed to extract data from return label: {file_path}")
+                update_task_status(task_id, "failed")
+        else:
+            print(f"[!] Could not read PDF: {file_path}")
+            update_task_status(task_id, "failed")
+
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
