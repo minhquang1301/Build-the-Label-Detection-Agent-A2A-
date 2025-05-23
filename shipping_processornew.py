@@ -9,7 +9,7 @@ pytesseract.pytesseract.tesseract_cmd = r"D:\Tesseract-OCR\tesseract.exe"
 os.environ["GHOSTSCRIPT_PATH"] = r"D:\gs\gs10.02.1\bin\gswin64c.exe" 
 # --- Config ---
 MESSAGE_QUEUE_HOST = "localhost"
-GEMINI_API_KEY = "AIzaSyCCeiOc72dEH4Axye8L4u8c2_nNf2Un_OQ"
+GEMINI_API_KEY = "YOUR GEMINI API KEY"
 GEMINI_MODEL_NAME = "gemini-1.5-flash-latest"
 
 # Nếu cần, chỉ định đường dẫn đến Tesseract (nếu không tự tìm được)
